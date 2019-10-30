@@ -29,23 +29,50 @@
          vhost_name_to_table_name/1
         ]).
 
+-define(MAX_TOPIC_TRANSLATION_CACHE_SIZE, 12).
+
 subcription_queue_name(ClientId) ->
     Base = "mqtt-subscription-" ++ ClientId ++ "qos",
     {list_to_binary(Base ++ "0"), list_to_binary(Base ++ "1")}.
+
+cached(CacheName, Fun, Arg) ->
+    Cache =
+        case get(CacheName) of
+            undefined ->
+                [];
+            Other ->
+                Other
+        end,
+    case lists:keyfind(Arg, 1, Cache) of
+        {_, V} ->
+            V;
+        false ->
+            V = Fun(Arg),
+            CacheTail = lists:sublist(Cache, ?MAX_TOPIC_TRANSLATION_CACHE_SIZE - 1),
+            put(CacheName, [{Arg, V} | CacheTail]),
+            V
+    end.
 
 %% amqp mqtt descr
 %% *    +    match one topic level
 %% #    #    match multiple topic levels
 %% .    /    topic level separator
-mqtt2amqp(Topic) ->
+to_amqp(T0) ->
     erlang:iolist_to_binary(
       re:replace(re:replace(Topic, "/", ".", [global]),
                  "[\+]", "*", [global])).
 
-amqp2mqtt(Topic) ->
+to_mqtt(T0) ->
     erlang:iolist_to_binary(
       re:replace(re:replace(Topic, "[\*]", "+", [global]),
                  "[\.]", "/", [global])).
+
+
+mqtt2amqp(Topic) ->
+    cached(mta_cache, fun to_amqp/1, Topic).
+
+amqp2mqtt(Topic) ->
+    cached(atm_cache, fun to_mqtt/1, Topic).
 
 gen_client_id() ->
     lists:nthtail(1, rabbit_guid:string(rabbit_guid:gen_secure(), [])).
