@@ -57,12 +57,12 @@ cached(CacheName, Fun, Arg) ->
 %% *    +    match one topic level
 %% #    #    match multiple topic levels
 %% .    /    topic level separator
-to_amqp(T0) ->
+to_amqp(Topic) ->
     erlang:iolist_to_binary(
       re:replace(re:replace(Topic, "/", ".", [global]),
                  "[\+]", "*", [global])).
 
-to_mqtt(T0) ->
+to_mqtt(Topic) ->
     erlang:iolist_to_binary(
       re:replace(re:replace(Topic, "[\*]", "+", [global]),
                  "[\.]", "/", [global])).
